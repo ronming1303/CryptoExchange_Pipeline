@@ -1,0 +1,25 @@
+# CryptoCompare API configuration
+# API Key should be set in environment variable CRYPTOCOMPARE_API_KEY
+
+exchanges:
+  - binance
+  - coinbase
+  - kraken
+  - okx
+  - bybit
+  - bitfinex
+
+pairs:
+  - base: btc
+    quote: usdt
+  - base: eth
+    quote: usdt
+  - base: sol
+    quote: usdt
+
+scheduler:
+  interval_minutes: 15  # Fetch data every 15 minutes
+
+storage:
+  format: parquet  # csv or parquet
+  path: ./data/raw
