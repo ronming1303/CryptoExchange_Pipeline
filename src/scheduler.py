@@ -10,7 +10,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
 from .config import Config
-from .data_fetcher import DataFetcher
+from .data_fetcher import DataFetcher, get_quarter_hour_window
 from .data_storage import DataStorage
 
 logger = logging.getLogger(__name__)
@@ -42,8 +42,33 @@ class PipelineScheduler:
         self.stop()
         sys.exit(0)
 
+    def _find_missing_timestamps(self, lookback_hours: int = 2) -> list:
+        """Find 15-minute timestamps in the lookback window that are missing from storage.
+
+        Checks each (exchange, pair) combo and collects timestamps not yet stored.
+        Returns the union of all missing timestamps (deduplicated).
+        """
+        window = get_quarter_hour_window(lookback_hours)
+        missing = set()
+
+        for pair in self.config.pairs:
+            for exchange in self.config.exchanges:
+                # Collect existing timestamps across all relevant dates in the window
+                dates = set(dt.date() for dt, _ in window)
+                existing = set()
+                for d in dates:
+                    existing |= self.storage.get_timestamps(
+                        exchange, pair.symbol, datetime(d.year, d.month, d.day)
+                    )
+
+                for target_dt, target_ts in window:
+                    if target_dt not in existing:
+                        missing.add((target_dt, target_ts))
+
+        return sorted(missing, key=lambda x: x[0])
+
     def run_once(self) -> dict:
-        """Run the pipeline once and return results.
+        """Run the pipeline once, backfilling any missing 15-minute slots in the last 2 hours.
 
         Returns:
             Dictionary with run statistics.
@@ -51,8 +76,26 @@ class PipelineScheduler:
         start_time = datetime.utcnow()
         logger.info(f"Starting data fetch at {start_time}")
 
-        # Fetch data from all configured exchanges and pairs
-        results = self.fetcher.fetch_all_configured()
+        # Find timestamps not yet in storage
+        missing_timestamps = self._find_missing_timestamps(lookback_hours=2)
+
+        if not missing_timestamps:
+            logger.info("No missing timestamps found in the last 2 hours, skipping fetch")
+            return {
+                "start_time": start_time.isoformat(),
+                "end_time": datetime.utcnow().isoformat(),
+                "duration_seconds": 0,
+                "total_fetches": 0,
+                "successful": 0,
+                "failed": 0,
+                "total_rows": 0,
+                "files_saved": 0,
+            }
+
+        logger.info(f"Found {len(missing_timestamps)} missing timestamp(s): {[str(dt) for dt, _ in missing_timestamps]}")
+
+        # Fetch only the missing timestamps
+        results = self.fetcher.fetch_all_configured(timestamps=missing_timestamps)
 
         # Save results
         saved_paths = self.storage.save_batch(results)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import pandas as pd
@@ -14,6 +14,27 @@ from .config import Config, TradingPair
 from .cryptocompare_client import CryptoCompareClient, CryptoCompareAPIError
 
 logger = logging.getLogger(__name__)
+
+
+def get_quarter_hour_window(lookback_hours: int = 2) -> list[tuple[datetime, int]]:
+    """Get all 15-minute timestamps in the lookback window (oldest first).
+
+    Args:
+        lookback_hours: How many hours back to look.
+
+    Returns:
+        List of (datetime, unix_timestamp) tuples, oldest first.
+    """
+    now = datetime.now(timezone.utc)
+    current_minute = (now.minute // 15) * 15
+    end = now.replace(minute=current_minute, second=0, microsecond=0)
+
+    count = lookback_hours * 4  # 4 quarter-hours per hour
+    result = []
+    for i in range(count - 1, -1, -1):
+        ts = end - timedelta(minutes=15 * i)
+        result.append((ts, int(ts.timestamp())))
+    return result
 
 
 def get_last_quarter_hour_timestamp() -> tuple[datetime, int]:
@@ -106,32 +127,42 @@ class DataFetcher:
                 pair=pair.symbol
             )
 
-    def fetch_all_configured(self) -> list[FetchResult]:
-        """Fetch data for all configured exchanges and pairs at the last quarter hour.
+    def fetch_all_configured(
+        self,
+        timestamps: Optional[list[tuple[datetime, int]]] = None
+    ) -> list[FetchResult]:
+        """Fetch data for all configured exchanges and pairs.
+
+        Args:
+            timestamps: List of (datetime, unix_timestamp) tuples to fetch.
+                        If None, fetches only the last quarter-hour.
 
         Returns:
             List of FetchResult objects.
         """
+        if timestamps is None:
+            target_dt, target_ts = get_last_quarter_hour_timestamp()
+            timestamps = [(target_dt, target_ts)]
+
         results = []
+        logger.info(f"Fetching {len(timestamps)} timestamp(s) across {len(self.config.pairs)} pairs / {len(self.config.exchanges)} exchanges")
 
-        # Get the target timestamp (last 15-minute mark)
-        target_dt, target_ts = get_last_quarter_hour_timestamp()
-        logger.info(f"Fetching data for timestamp: {target_dt.isoformat()}")
+        for target_dt, target_ts in timestamps:
+            logger.info(f"Fetching data for timestamp: {target_dt.isoformat()}")
+            for pair in self.config.pairs:
+                for exchange in self.config.exchanges:
+                    logger.info(f"Fetching {pair.symbol} from {exchange}...")
+                    result = self.fetch_historical_price(pair, exchange, target_ts)
+                    results.append(result)
 
-        for pair in self.config.pairs:
-            for exchange in self.config.exchanges:
-                logger.info(f"Fetching {pair.symbol} from {exchange}...")
-                result = self.fetch_historical_price(pair, exchange, target_ts)
-                results.append(result)
+                    if result.success:
+                        row_count = len(result.data) if result.data is not None else 0
+                        logger.info(f"Successfully fetched {row_count} rows for {pair.symbol} from {exchange}")
+                    else:
+                        logger.warning(f"Failed to fetch {pair.symbol} from {exchange}: {result.error}")
 
-                if result.success:
-                    row_count = len(result.data) if result.data is not None else 0
-                    logger.info(f"Successfully fetched {row_count} rows for {pair.symbol} from {exchange}")
-                else:
-                    logger.warning(f"Failed to fetch {pair.symbol} from {exchange}: {result.error}")
-
-                # Rate limit: wait 0.5 seconds between requests
-                time.sleep(0.5)
+                    # Rate limit: wait 0.5 seconds between requests
+                    time.sleep(0.5)
 
         return results
 

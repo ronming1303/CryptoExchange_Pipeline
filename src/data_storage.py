@@ -172,6 +172,35 @@ class DataStorage:
 
         return combined.reset_index(drop=True)
 
+    def get_timestamps(
+        self,
+        exchange: str,
+        pair: str,
+        date: datetime
+    ) -> set:
+        """Get existing timestamps stored for a given exchange/pair/date.
+
+        Args:
+            exchange: Exchange name.
+            pair: Trading pair symbol (e.g. 'btc-usdt').
+            date: The date to check.
+
+        Returns:
+            Set of timezone-aware datetime objects already stored.
+        """
+        files = self.list_files(date=date, exchange=exchange, pair=pair)
+        if not files:
+            return set()
+        try:
+            df = self._read_file(files[0])
+            if df.empty or "timestamp" not in df.columns:
+                return set()
+            import pandas as pd
+            return set(pd.to_datetime(df["timestamp"], utc=True).tolist())
+        except Exception as e:
+            logger.warning(f"Failed to read timestamps from {files[0]}: {e}")
+            return set()
+
     def list_files(
         self,
         date: Optional[datetime] = None,
