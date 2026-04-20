@@ -4,7 +4,7 @@ on:
   # Run at 5 minutes past each quarter hour (to ensure historical data is available)
   # 00:05, 00:20, 00:35, 00:50
   schedule:
-    - cron: '5,20,35,50 * * * *'
+    - cron: '0 0,12 * * *' 
 
   # Allow manual trigger
   workflow_dispatch:
