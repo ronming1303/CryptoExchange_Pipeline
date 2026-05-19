@@ -68,7 +68,7 @@ class PipelineScheduler:
         return sorted(missing, key=lambda x: x[0])
 
     def run_once(self) -> dict:
-        """Run the pipeline once, backfilling any missing 15-minute slots in the last 2 hours.
+        """Run the pipeline once, backfilling any missing 15-minute slots in the last 12 hours.
 
         Returns:
             Dictionary with run statistics.
@@ -77,10 +77,10 @@ class PipelineScheduler:
         logger.info(f"Starting data fetch at {start_time}")
 
         # Find timestamps not yet in storage
-        missing_timestamps = self._find_missing_timestamps(lookback_hours=2)
+        missing_timestamps = self._find_missing_timestamps(lookback_hours=12)
 
         if not missing_timestamps:
-            logger.info("No missing timestamps found in the last 2 hours, skipping fetch")
+            logger.info("No missing timestamps found in the last 12 hours, skipping fetch")
             return {
                 "start_time": start_time.isoformat(),
                 "end_time": datetime.utcnow().isoformat(),
