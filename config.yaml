@@ -1,5 +1,5 @@
-# CryptoCompare API configuration
-# API Key should be set in environment variable CRYPTOCOMPARE_API_KEY
+# Cryptocurrency Exchange Data Pipeline Configuration
+# Uses CCXT library to fetch data directly from exchanges (no API key required)
 
 exchanges:
   - binance

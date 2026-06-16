@@ -11,7 +11,7 @@ from typing import Optional
 import pandas as pd
 
 from .config import Config, TradingPair
-from .cryptocompare_client import CryptoCompareClient, CryptoCompareAPIError
+from .ccxt_client import CCXTClient, CCXTAPIError
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ class DataFetcher:
             config: Configuration object.
         """
         self.config = config
-        self.client = CryptoCompareClient(api_key=config.api_key)
+        self.client = CCXTClient(api_key=config.api_key)
 
     def fetch_historical_price(
         self,
@@ -118,7 +118,7 @@ class DataFetcher:
                 pair=pair.symbol
             )
 
-        except CryptoCompareAPIError as e:
+        except CCXTAPIError as e:
             logger.error(f"Failed to fetch {pair.symbol} from {exchange}: {e}")
             return FetchResult(
                 success=False,

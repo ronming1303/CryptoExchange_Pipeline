@@ -39,7 +39,7 @@ class StorageConfig:
 @dataclass
 class Config:
     """Main configuration class."""
-    api_key: str
+    api_key: Optional[str]
     exchanges: list[str] = field(default_factory=list)
     pairs: list[TradingPair] = field(default_factory=list)
     scheduler: SchedulerConfig = field(default_factory=SchedulerConfig)
@@ -56,16 +56,14 @@ def load_config(config_path: Optional[str] = None) -> Config:
         Config object with all settings.
 
     Raises:
-        ValueError: If CRYPTOCOMPARE_API_KEY is not set.
         FileNotFoundError: If config file doesn't exist.
     """
     # Load environment variables from .env file
     load_dotenv()
 
-    # Get API key from environment
+    # Get API key from environment (optional for CCXT - not required for public data)
     api_key = os.getenv("CRYPTOCOMPARE_API_KEY")
-    if not api_key:
-        raise ValueError("CRYPTOCOMPARE_API_KEY environment variable is not set")
+    # No longer required - CCXT works without API key for public endpoints
 
     # Determine config file path
     if config_path is None:

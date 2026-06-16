@@ -104,6 +104,12 @@ def main() -> int:
             logger.info("Running pipeline once...")
             stats = scheduler.run_once()
             logger.info(f"Pipeline completed: {stats}")
+
+            # Exit with error if all fetches failed
+            if stats["successful"] == 0 and stats["total_fetches"] > 0:
+                logger.error("All data fetches failed - pipeline unsuccessful")
+                return 1
+
             return 0
         else:
             # Start scheduled runs
